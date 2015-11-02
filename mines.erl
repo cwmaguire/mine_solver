@@ -2,34 +2,42 @@
 
 -export([solutions/1]).
 
+-record(step,
+        {picked :: [integer()],
+         maxed :: [integer()],
+         groups :: [{[integer()], integer()}]}).
+
 solutions(Groups) when is_list(Groups) ->
-    solutions({_Picked = [], _MaxedOut = [], Groups});
-solutions({Picked, _, _NoMoreGroups = []}) ->
-    Picked;
-solutions({Picked, MaxedOut, [{Spots, 0} | Groups]}) ->
-    solutions({Picked, lists:usort(Picked ++ MaxedOut ++ Spots), Groups});
-solutions({Picked, MaxedOut, [Group = {Spots, NumPicks} | Groups]}) ->
-    case lists:foldl(fun valid_solutions/2, {Picked, MaxedOut, Group, []}, Spots) of
-        {_, _, _, []} ->
-            [bad_solution | Picked];
-        {_, _, _, NewSolutions} ->
-            NewArgs = [{NewPicked, MaxedOut, [{SpotsLeft, NumPicks - 1} | Groups]} || {NewPicked, SpotsLeft} <- NewSolutions],
-            [solutions(NewArg) || NewArg <- NewArgs]
+    lists:usort(lists:flatten(solutions(#step{groups = Groups})));
+solutions(#step{picked = Picked, groups = []}) ->
+    list_to_tuple(lists:flatten(Picked));
+solutions(Step = #step{picked = Picked,
+                       maxed = MaxedOut,
+                       groups = [{Spots, 0} | Groups]}) ->
+    solutions(Step#step{maxed = lists:usort(Picked ++ MaxedOut ++ Spots),
+                        groups = Groups});
+solutions(Step = #step{groups = [{Spots, _} | _]}) ->
+    case lists:foldl(fun valid_solutions/2, {Step, []}, Spots) of
+        {_, []} ->
+            list_to_tuple(lists:flatten([bad_solution | Step#step.picked]));
+        {_, NewSteps} ->
+            [solutions(NewStep) || NewStep <- NewSteps]
     end.
 
-valid_solutions(Spot, {CurrSpots, MaxedOut, Group = {PossibleSpots, Max}, Solutions}) ->
-    case is_valid(Spot, PossibleSpots, CurrSpots, MaxedOut, Max) of
+valid_solutions(Spot, {Step = #step{groups = [{Spots, Max} | Groups]}, Steps}) ->
+    case is_valid(Spot, Step) of
         false ->
-            {CurrSpots, MaxedOut, Group, Solutions};
-        _ ->
-            NewSolution = {[Spot | CurrSpots], PossibleSpots -- [Spot]},
-            {CurrSpots, MaxedOut, Group, [NewSolution | Solutions]}
+            {Step, Steps};
+        true ->
+            NewStep = Step#step{picked = [Spot | Step#step.picked],
+                                groups = [{Spots -- [Spot], Max - 1} | Groups]},
+            {Step, [NewStep | Steps]}
     end.
 
 %is_valid(_, Spots, _Picked, MaxedOut, _Max = 1) ->
     %is_disjoint(Spots, MaxedOut);
-is_valid(Spot, _, Picked, MaxedOut, _) ->
-    not lists:member(Spot, Picked ++ MaxedOut).
+is_valid(Spot, #step{picked = Picked, maxed = Maxed}) ->
+    not lists:member(Spot, Picked ++ Maxed).
 
 %is_disjoint(A, B) ->
     %A -- B == A.
