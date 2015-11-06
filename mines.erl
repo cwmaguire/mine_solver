@@ -1,11 +1,21 @@
 -module(mines).
 
 -export([solutions/1]).
+-export([probabilities/1]).
 
 -record(step,
         {picked = [] :: [integer()],
          maxed = [] :: [integer()],
          groups = [] :: [{[integer()], integer()}]}).
+
+probabilities(Solutions) ->
+    AllCells = lists:flatten(Solutions),
+    Freqs = lists:foldl(fun add_cell/2, dict:new(), AllCells),
+    Probs = lists:map(fun({Cell, Count}) -> {Cell, Count / length(Solutions)} end, dict:to_list(Freqs)),
+    lists:sort(fun({_, X}, {_, Y}) -> X > Y end, Probs).
+
+add_cell(Cell, Dict) ->
+    dict:update(Cell, fun(X) -> X + 1 end, 1, Dict).
 
 solutions(Groups) when is_list(Groups) ->
     Solutions = lists:usort(lists:flatten(solutions(#step{groups = Groups}))),
